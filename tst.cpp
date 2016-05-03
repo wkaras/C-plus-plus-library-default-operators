@@ -18,30 +18,11 @@ SOFTWARE.
 */
 
 #include "composite_op.h"
+#include "composite_op_cmp.h"
 
 #include <iostream>
 
-// Test of compostie_op.h.  Will generate operator == for a class if all its
-// components (data members, base classes) have operator ==.
-
-// Goodbye thread safety.
-bool eq_impl_are_equal;
-
-template <typename T> struct Eq
-  {
-    void operator () (const T &op1, const T &op2)
-      { eq_impl_are_equal = eq_impl_are_equal && (op1 == op2); }
-  };
-
-template <class C, COMPOSITE_OP_CHECK(C, Eq)>
-inline bool operator == (const C &op1, const C &op2)
-  {
-    eq_impl_are_equal = true;
-
-    Eq<C>()(op1, op2);
-
-    return(eq_impl_are_equal);
-  }
+// Test of composite_op.h and composite_op_cmp.h
 
 COMPOSITE_OP_CLASS(A)
   {
@@ -53,7 +34,8 @@ COMPOSITE_OP_CLASS(A)
     A() : c('c'), i(666) { }
   };
 
-COMPOSITE_OP_2(A, Eq)
+COMPOSITE_OP(A, Composite_op_cmp_eq)
+COMPOSITE_OP(A, Composite_op_cmp_greater)
 
 COMPOSITE_OP_CLASS(B) : public COMPOSITE_OP_SUB(A)
   {
@@ -68,7 +50,35 @@ COMPOSITE_OP_CLASS(B) : public COMPOSITE_OP_SUB(A)
     B() : u(27614) { }
   };
 
-COMPOSITE_OP_2(B, Eq)
+COMPOSITE_OP(B, Composite_op_cmp_eq)
+COMPOSITE_OP(B, Composite_op_cmp_greater)
+
+unsigned pad_impl_size_total;
+
+template <typename T> struct Pad_impl
+  {
+    void operator () (const T &, const T &)
+      { pad_impl_size_total += sizeof(T); }
+  };
+
+COMPOSITE_OP(A, Pad_impl)
+
+COMPOSITE_OP(B, Pad_impl)
+
+// Returns total number of "pad" bytes in a class defined with
+// COMPOSITE_OP_CLASS.
+//
+template <class C>
+inline unsigned pad_bytes(const C &c)
+  {
+    COMPOSITE_OP_CHECK(C, Pad_impl)
+
+    pad_impl_size_total = 0;
+
+    Pad_impl<C>()(c, c);
+
+    return(sizeof(C) - pad_impl_size_total);
+  }
 
 using std::cout;
 
@@ -76,18 +86,57 @@ int main()
   {
     B<> b1, b2;
 
+    if (0 == 1)
+      cout << "FAIL\n";
+
     if (!(b1 == b2))
+      cout << "FAIL\n";
+    if (b1 < b2)
+      cout << "FAIL\n";
+    if (!(b1 <= b2))
+      cout << "FAIL\n";
+    if (b1 > b2)
+      cout << "FAIL\n";
+    if (!(b1 >= b2))
       cout << "FAIL\n";
 
     ++b1.c;
 
     if (b1 == b2)
       cout << "FAIL\n";
+    if (!(b1 > b2))
+      cout << "FAIL\n";
+    if (!(b1 >= b2))
+      cout << "FAIL\n";
+    if (b1 < b2)
+      cout << "FAIL\n";
+    if (b1 <= b2)
+      cout << "FAIL\n";
 
-    --b1.c;
     ++b2.mbr_a.i;
 
     if (b1 == b2)
+      cout << "FAIL\n";
+    if (!(b1 > b2))
+      cout << "FAIL\n";
+    if (!(b1 >= b2))
+      cout << "FAIL\n";
+    if (b1 < b2)
+      cout << "FAIL\n";
+    if (b1 <= b2)
+      cout << "FAIL\n";
+
+    --b1.c;
+
+    if (b1 == b2)
+      cout << "FAIL\n";
+    if (b1 > b2)
+      cout << "FAIL\n";
+    if (b1 >= b2)
+      cout << "FAIL\n";
+    if (!(b1 < b2))
+      cout << "FAIL\n";
+    if (!(b1 <= b2))
       cout << "FAIL\n";
 
     --b2.mbr_a.i;
@@ -95,17 +144,47 @@ int main()
 
     if (b1 == b2)
       cout << "FAIL\n";
+    if (!(b1 > b2))
+      cout << "FAIL\n";
+    if (!(b1 >= b2))
+      cout << "FAIL\n";
+    if (b1 < b2)
+      cout << "FAIL\n";
+    if (b1 <= b2)
+      cout << "FAIL\n";
 
     --b1.mbr_a2.c;
     ++b2.u;
 
     if (b1 == b2)
       cout << "FAIL\n";
+    if (b1 > b2)
+      cout << "FAIL\n";
+    if (b1 >= b2)
+      cout << "FAIL\n";
+    if (!(b1 < b2))
+      cout << "FAIL\n";
+    if (!(b1 <= b2))
+      cout << "FAIL\n";
 
     --b2.u;
 
     if (!(b1 == b2))
       cout << "FAIL\n";
+    if (b1 < b2)
+      cout << "FAIL\n";
+    if (!(b1 <= b2))
+      cout << "FAIL\n";
+    if (b1 > b2)
+      cout << "FAIL\n";
+    if (!(b1 >= b2))
+      cout << "FAIL\n";
+
+    cout << "A pad bytes = " << pad_bytes(A<>()) << '\n';
+
+    cout << "B pad bytes = " << pad_bytes(B<>()) << '\n';
 
     return(0);
   }
+
+#include "composite_op_cmp.cpp"
